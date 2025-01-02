@@ -6,11 +6,6 @@ on:
   pull_request:
     types: [opened, closed]
 
-permissions:
-  issues: write
-  pull-requests: write
-  projects: write
-
 jobs:
   manage_project:
     runs-on: ubuntu-latest
