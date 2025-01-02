@@ -1,10 +1,16 @@
 name: Automatisation GitHub Projects
 
+# Déclencheurs pour les événements Issues et Pull Requests
 on:
   issues:
     types: [opened, assigned, closed]
   pull_request:
     types: [opened, closed]
+
+permissions:
+  issues: write
+  pull-requests: write
+  projects: write
 
 jobs:
   manage_project:
@@ -16,40 +22,56 @@ jobs:
       uses: actions/checkout@v3
 
     # Étape 2 : Déplacer les issues selon leur statut
-    - name: Gérer les tâches du tableau
+    - name: Gérer les tâches Issues dans le tableau
       if: github.event_name == 'issues'
       run: |
+        set -e  # Arrête le script si une commande échoue
         ISSUE_STATE=${{ github.event.action }}
+        echo "État de l'issue : $ISSUE_STATE"
+
         if [[ "$ISSUE_STATE" == "opened" ]]; then
           gh project item-add \
             --project "DevOps PLAN" \
             --content-id ${{ github.event.issue.node_id }} \
             --field "Status=Backlog"
+          echo "L'issue a été ajoutée à la colonne Backlog."
         elif [[ "$ISSUE_STATE" == "assigned" ]]; then
           gh project item-update \
             --project "DevOps PLAN" \
             --content-id ${{ github.event.issue.node_id }} \
             --field "Status=In progress"
+          echo "L'issue a été déplacée à In progress."
         elif [[ "$ISSUE_STATE" == "closed" ]]; then
           gh project item-update \
             --project "DevOps PLAN" \
             --content-id ${{ github.event.issue.node_id }} \
             --field "Status=Done"
+          echo "L'issue a été marquée comme Done."
         fi
 
     # Étape 3 : Suivre les PRs dans le tableau
-    - name: Gérer les PRs du tableau
+    - name: Gérer les tâches Pull Requests dans le tableau
       if: github.event_name == 'pull_request'
       run: |
+        set -e  # Arrête le script si une commande échoue
         PR_STATE=${{ github.event.action }}
+        echo "État de la PR : $PR_STATE"
+
         if [[ "$PR_STATE" == "opened" ]]; then
-          gh project item-update \
+          gh project item-add \
             --project "DevOps PLAN" \
             --content-id ${{ github.event.pull_request.node_id }} \
             --field "Status=In review"
-        elif [[ "$PR_STATE" == "closed" && github.event.pull_request.merged == true ]]; then
+          echo "La Pull Request a été ajoutée à In review."
+        elif [[ "$PR_STATE" == "closed" && "${{ github.event.pull_request.merged }}" == "true" ]]; then
           gh project item-update \
             --project "DevOps PLAN" \
             --content-id ${{ github.event.pull_request.node_id }} \
             --field "Status=Done"
+          echo "La Pull Request a été marquée comme Done."
         fi
+
+    # Étape 4 : Gestion des erreurs
+    - name: Gérer les erreurs (optionnel)
+      if: failure()
+      run: echo "Une erreur s'est produite lors de l'exécution du workflow. Vérifiez les logs pour plus d'informations."
