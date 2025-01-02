@@ -1,0 +1,50 @@
+name: Automatisation GitHub Projects
+
+on:
+  issues:
+    types: [opened, assigned, closed]
+  pull_request:
+    types: [opened, closed]
+
+jobs:
+  manage_project:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Étape 1 : Vérifier le repo
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Étape 2 : Déplacer les issues selon leur statut
+    - name: Gérer les tâches du tableau
+      if: github.event_name == 'issues'
+      run: |
+        ISSUE_STATE=${{ github.event.action }}
+        if [[ "$ISSUE_STATE" == "opened" ]]; then
+          gh project item-add \
+            --project "Développement de l'Application RH" \
+            --content-id ${{ github.event.issue.node_id }} \
+            --field "Status=À faire"
+        elif [[ "$ISSUE_STATE" == "closed" ]]; then
+          gh project item-update \
+            --project "Développement de l'Application RH" \
+            --content-id ${{ github.event.issue.node_id }} \
+            --field "Status=Terminé"
+        fi
+
+    # Étape 3 : Suivre les PRs dans le tableau
+    - name: Gérer les PRs du tableau
+      if: github.event_name == 'pull_request'
+      run: |
+        PR_STATE=${{ github.event.action }}
+        if [[ "$PR_STATE" == "opened" ]]; then
+          gh project item-update \
+            --project "Développement de l'Application RH" \
+            --content-id ${{ github.event.pull_request.node_id }} \
+            --field "Status=En revue"
+        elif [[ "$PR_STATE" == "closed" && github.event.pull_request.merged == true ]]; then
+          gh project item-update \
+            --project "Développement de l'Application RH" \
+            --content-id ${{ github.event.pull_request.node_id }} \
+            --field "Status=Terminé"
+        fi
