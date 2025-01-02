@@ -31,8 +31,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ITEM_ID=$(gh issue view ${{ github.event.issue.number }} --json id -q ".id")
-          BACKLOG_COLUMN_ID=$(gh project field list --project-number 2 --owner chriscedrick --json name,id -q '.[] | select(.name == "Backlog") | .id')
-          gh project item add --project-number 2 --item-id $ITEM_ID --owner chriscedrick
+          BACKLOG_COLUMN_ID=$(gh project field-list 2 --owner chriscedrick --json name,id -q '.[] | select(.name == "Backlog") | .id')
+          gh project item add 2 --item-id $ITEM_ID --owner chriscedrick
 
       # Move to "In progress" when assigned
       - name: Move issue to "In progress" when assigned
@@ -41,8 +41,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ITEM_ID=$(gh issue view ${{ github.event.issue.number }} --json id -q ".id")
-          IN_PROGRESS_FIELD_ID=$(gh project field list --project-number 2 --owner chriscedrick --json name,id -q '.[] | select(.name == "In progress") | .id')
-          gh project item-field-update --project-number 2 --item-id $ITEM_ID --field-id $IN_PROGRESS_FIELD_ID --value "In progress" --owner chriscedrick
+          IN_PROGRESS_FIELD_ID=$(gh project field-list 2 --owner chriscedrick --json name,id -q '.[] | select(.name == "In progress") | .id')
+          gh project item-field-update 2 --item-id $ITEM_ID --field-id $IN_PROGRESS_FIELD_ID --value "In progress" --owner chriscedrick
 
       # Move to "Done" when the issue is closed
       - name: Move issue to "Done"
@@ -51,8 +51,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ITEM_ID=$(gh issue view ${{ github.event.issue.number }} --json id -q ".id")
-          DONE_FIELD_ID=$(gh project field list --project-number 2 --owner chriscedrick --json name,id -q '.[] | select(.name == "Done") | .id')
-          gh project item-field-update --project-number 2 --item-id $ITEM_ID --field-id $DONE_FIELD_ID --value "Done" --owner chriscedrick
+          DONE_FIELD_ID=$(gh project field-list 2 --owner chriscedrick --json name,id -q '.[] | select(.name == "Done") | .id')
+          gh project item-field-update 2 --item-id $ITEM_ID --field-id $DONE_FIELD_ID --value "Done" --owner chriscedrick
 
       # Add PR to "In review" when created
       - name: Add PR to "In review"
@@ -61,8 +61,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ITEM_ID=$(gh pr view ${{ github.event.pull_request.number }} --json id -q ".id")
-          IN_REVIEW_FIELD_ID=$(gh project field list --project-number 2 --owner chriscedrick --json name,id -q '.[] | select(.name == "In review") | .id')
-          gh project item add --project-number 2 --item-id $ITEM_ID --owner chriscedrick
+          IN_REVIEW_FIELD_ID=$(gh project field-list 2 --owner chriscedrick --json name,id -q '.[] | select(.name == "In review") | .id')
+          gh project item add 2 --item-id $ITEM_ID --owner chriscedrick
 
       # Move PR to "Done" when merged
       - name: Move PR to "Done"
@@ -71,5 +71,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ITEM_ID=$(gh pr view ${{ github.event.pull_request.number }} --json id -q ".id")
-          DONE_FIELD_ID=$(gh project field list --project-number 2 --owner chriscedrick --json name,id -q '.[] | select(.name == "Done") | .id')
-          gh project item-field-update --project-number 2 --item-id $ITEM_ID --field-id $DONE_FIELD_ID --value "Done" --owner chriscedrick
+          DONE_FIELD_ID=$(gh project field-list 2 --owner chriscedrick --json name,id -q '.[] | select(.name == "Done") | .id')
+          gh project item-field-update 2 --item-id $ITEM_ID --field-id $DONE_FIELD_ID --value "Done" --owner chriscedrick
