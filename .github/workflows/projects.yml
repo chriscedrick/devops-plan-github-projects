@@ -1,80 +1,71 @@
-name: Automatisation GitHub Projects
+name: Automation Workflow for GitHub Projects
 
 on:
   issues:
-    types: [opened, assigned, closed]
+    types:
+      - opened
+      - assigned
+      - closed
   pull_request:
-    types: [opened, closed]
+    types:
+      - opened
+      - closed
 
 jobs:
-  manage_project:
+  project_automation:
     runs-on: ubuntu-latest
 
     steps:
-    # Étape 1 : Vérifier le repo
-    - name: Checkout code
-      uses: actions/checkout@v3
+      # Step 1: Check out the repository
+      - name: Check out the repository
+        uses: actions/checkout@v3
 
-    # Étape 2 : Gérer les issues
-    - name: Gérer les issues dans le projet
-      if: github.event_name == 'issues'
-      env:
-        PROJECT_ID: "PVT_kwHOBqVNNs4AvEbb"
-      run: |
-        set -e
-        ISSUE_STATE=${{ github.event.action }}
-        CONTENT_ID=${{ github.event.issue.node_id }}
+      # Step 2: Set up GitHub CLI
+      - name: Install GitHub CLI
+        run: sudo apt install gh -y
 
-        echo "État de l'issue : $ISSUE_STATE"
+      # Step 3: Authenticate GitHub CLI
+      - name: Authenticate GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
 
-        if [[ "$ISSUE_STATE" == "opened" ]]; then
-          gh project item-add \
-            --id "$PROJECT_ID" \
-            --content-id "$CONTENT_ID"
-          gh project item-edit \
-            --id "$PROJECT_ID" \
-            --content-id "$CONTENT_ID" \
-            --field "Status=Backlog"
-          echo "L'issue a été ajoutée au Backlog."
-        elif [[ "$ISSUE_STATE" == "assigned" ]]; then
-          gh project item-edit \
-            --id "$PROJECT_ID" \
-            --content-id "$CONTENT_ID" \
-            --field "Status=In progress"
-          echo "L'issue a été déplacée à In progress."
-        elif [[ "$ISSUE_STATE" == "closed" ]]; then
-          gh project item-edit \
-            --id "$PROJECT_ID" \
-            --content-id "$CONTENT_ID" \
-            --field "Status=Done"
-          echo "L'issue a été marquée comme Done."
-        fi
+      # Add the issue to "Backlog" when created
+      - name: Add issue to Backlog
+        if: github.event_name == 'issues' && github.event.action == 'opened'
+        run: |
+          ITEM_ID=$(gh issue view ${{ github.event.issue.number }} --json id -q ".id")
+          BACKLOG_COLUMN_ID=$(gh project field list --project-number 2 --owner chriscedrick --json name,id -q '.[] | select(.name == "Backlog") | .id')
+          gh project item add --project-number 2 --item-id $ITEM_ID --owner chriscedrick
 
-    # Étape 3 : Gérer les PRs
-    - name: Gérer les Pull Requests dans le projet
-      if: github.event_name == 'pull_request'
-      env:
-        PROJECT_ID: "PVT_kwHOBqVNNs4AvEbb"
-      run: |
-        set -e
-        PR_STATE=${{ github.event.action }}
-        CONTENT_ID=${{ github.event.pull_request.node_id }}
+      # Move to "In progress" when assigned
+      - name: Move issue to "In progress" when assigned
+        if: github.event_name == 'issues' && github.event.action == 'assigned'
+        run: |
+          ITEM_ID=$(gh issue view ${{ github.event.issue.number }} --json id -q ".id")
+          IN_PROGRESS_FIELD_ID=$(gh project field list --project-number 2 --owner chriscedrick --json name,id -q '.[] | select(.name == "In progress") | .id')
+          gh project item-field-update --project-number 2 --item-id $ITEM_ID --field-id $IN_PROGRESS_FIELD_ID --value "In progress" --owner chriscedrick
 
-        echo "État de la PR : $PR_STATE"
+      # Move to "Done" when the issue is closed
+      - name: Move issue to "Done"
+        if: github.event_name == 'issues' && github.event.action == 'closed'
+        run: |
+          ITEM_ID=$(gh issue view ${{ github.event.issue.number }} --json id -q ".id")
+          DONE_FIELD_ID=$(gh project field list --project-number 2 --owner chriscedrick --json name,id -q '.[] | select(.name == "Done") | .id')
+          gh project item-field-update --project-number 2 --item-id $ITEM_ID --field-id $DONE_FIELD_ID --value "Done" --owner chriscedrick
 
-        if [[ "$PR_STATE" == "opened" ]]; then
-          gh project item-add \
-            --id "$PROJECT_ID" \
-            --content-id "$CONTENT_ID"
-          gh project item-edit \
-            --id "$PROJECT_ID" \
-            --content-id "$CONTENT_ID" \
-            --field "Status=In review"
-          echo "La PR a été ajoutée à In review."
-        elif [[ "$PR_STATE" == "closed" && "${{ github.event.pull_request.merged }}" == "true" ]]; then
-          gh project item-edit \
-            --id "$PROJECT_ID" \
-            --content-id "$CONTENT_ID" \
-            --field "Status=Done"
-          echo "La PR a été marquée comme Done."
-        fi
+      # Add PR to "In review" when created
+      - name: Add PR to "In review"
+        if: github.event_name == 'pull_request' && github.event.action == 'opened'
+        run: |
+          ITEM_ID=$(gh pr view ${{ github.event.pull_request.number }} --json id -q ".id")
+          IN_REVIEW_FIELD_ID=$(gh project field list --project-number 2 --owner chriscedrick --json name,id -q '.[] | select(.name == "In review") | .id')
+          gh project item add --project-number 2 --item-id $ITEM_ID --owner chriscedrick
+
+      # Move PR to "Done" when merged
+      - name: Move PR to "Done"
+        if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+        run: |
+          ITEM_ID=$(gh pr view ${{ github.event.pull_request.number }} --json id -q ".id")
+          DONE_FIELD_ID=$(gh project field list --project-number 2 --owner chriscedrick --json name,id -q '.[] | select(.name == "Done") | .id')
+          gh project item-field-update --project-number 2 --item-id $ITEM_ID --field-id $DONE_FIELD_ID --value "Done" --owner chriscedrick
