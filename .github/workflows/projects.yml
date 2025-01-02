@@ -22,14 +22,19 @@ jobs:
         ISSUE_STATE=${{ github.event.action }}
         if [[ "$ISSUE_STATE" == "opened" ]]; then
           gh project item-add \
-            --project "Développement de l'Application RH" \
+            --project "DevOps PLAN" \
             --content-id ${{ github.event.issue.node_id }} \
-            --field "Status=À faire"
+            --field "Status=Backlog"
+        elif [[ "$ISSUE_STATE" == "assigned" ]]; then
+          gh project item-update \
+            --project "DevOps PLAN" \
+            --content-id ${{ github.event.issue.node_id }} \
+            --field "Status=In progress"
         elif [[ "$ISSUE_STATE" == "closed" ]]; then
           gh project item-update \
-            --project "Développement de l'Application RH" \
+            --project "DevOps PLAN" \
             --content-id ${{ github.event.issue.node_id }} \
-            --field "Status=Terminé"
+            --field "Status=Done"
         fi
 
     # Étape 3 : Suivre les PRs dans le tableau
@@ -39,12 +44,12 @@ jobs:
         PR_STATE=${{ github.event.action }}
         if [[ "$PR_STATE" == "opened" ]]; then
           gh project item-update \
-            --project "Développement de l'Application RH" \
+            --project "DevOps PLAN" \
             --content-id ${{ github.event.pull_request.node_id }} \
-            --field "Status=En revue"
+            --field "Status=In review"
         elif [[ "$PR_STATE" == "closed" && github.event.pull_request.merged == true ]]; then
           gh project item-update \
-            --project "Développement de l'Application RH" \
+            --project "DevOps PLAN" \
             --content-id ${{ github.event.pull_request.node_id }} \
-            --field "Status=Terminé"
+            --field "Status=Done"
         fi
