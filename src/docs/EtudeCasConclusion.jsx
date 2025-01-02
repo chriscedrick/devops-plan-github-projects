@@ -3,7 +3,7 @@ import React from 'react'
 export default function EtudeCasConclusion() {
   return (
     <div>
-      Etude de cas et conclusion
+      Etude de cas et conclusion new
     </div>
   )
 }
