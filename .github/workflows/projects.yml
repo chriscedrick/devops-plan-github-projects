@@ -1,75 +1,105 @@
-name: Automation Workflow for GitHub Projects
+name: Project Automation
 
 on:
   issues:
-    types:
-      - opened
-      - assigned
-      - closed
+    types: [assigned]
+  create:
   pull_request:
-    types:
-      - opened
-      - closed
+    types: [opened, closed]
 
 jobs:
-  project_automation:
+  move_to_in_progress:
+    if: github.event_name == 'issues' || github.event_name == 'create'
     runs-on: ubuntu-latest
-
     steps:
-      # Step 1: Check out the repository
-      - name: Check out the repository
-        uses: actions/checkout@v3
+      - name: Move issue to "In progress" column
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const projectNumber = 2;
+            const columnName = "In progress";
+            const issueNodeId = context.payload.issue.node_id;
 
-      # Step 2: Set up GitHub CLI
-      - name: Install GitHub CLI
-        run: sudo apt install gh -y
+            console.log(`Moving issue with Node ID: ${issueNodeId} to column: ${columnName}`);
 
-      # Add the issue to "Backlog" when created
-      - name: Add issue to Backlog
-        if: github.event_name == 'issues' && github.event.action == 'opened'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          ITEM_ID=$(gh issue view ${{ github.event.issue.number }} --json id -q ".id")
-          BACKLOG_COLUMN_ID=$(gh project field-list 2 --owner chriscedrick --format json name,id -q '.[] | select(.name == "Backlog") | .id')
-          gh project item add 2 --item-id $ITEM_ID --owner chriscedrick
+            const { repository } = await github.graphql(`
+              query($owner: String!, $repo: String!, $projectNumber: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  projectV2(number: $projectNumber) {
+                    id
+                    fields(first: 10) {
+                      nodes {
+                        id
+                        name
+                      }
+                    }
+                  }
+                }
+              }
+            `, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              projectNumber,
+            });
 
-      # Move to "In progress" when assigned
-      - name: Move issue to "In progress" when assigned
-        if: github.event_name == 'issues' && github.event.action == 'assigned'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          ITEM_ID=$(gh issue view ${{ github.event.issue.number }} --json id -q ".id")
-          IN_PROGRESS_FIELD_ID=$(gh project field-list 2 --owner chriscedrick --format json name,id -q '.[] | select(.name == "In progress") | .id')
-          gh project item-field-update 2 --item-id $ITEM_ID --field-id $IN_PROGRESS_FIELD_ID --value "In progress" --owner chriscedrick
+            const projectId = repository.projectV2.id;
 
-      # Move to "Done" when the issue is closed
-      - name: Move issue to "Done"
-        if: github.event_name == 'issues' && github.event.action == 'closed'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          ITEM_ID=$(gh issue view ${{ github.event.issue.number }} --json id -q ".id")
-          DONE_FIELD_ID=$(gh project field-list 2 --owner chriscedrick --format json name,id -q '.[] | select(.name == "Done") | .id')
-          gh project item-field-update 2 --item-id $ITEM_ID --field-id $DONE_FIELD_ID --value "Done" --owner chriscedrick
+            const { id: statusFieldId } = repository.projectV2.fields.nodes.find(
+              field => field.name === "Status"
+            );
 
-      # Add PR to "In review" when created
-      - name: Add PR to "In review"
-        if: github.event_name == 'pull_request' && github.event.action == 'opened'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          ITEM_ID=$(gh pr view ${{ github.event.pull_request.number }} --json id -q ".id")
-          IN_REVIEW_FIELD_ID=$(gh project field-list 2 --owner chriscedrick --format json name,id -q '.[] | select(.name == "In review") | .id')
-          gh project item add 2 --item-id $ITEM_ID --owner chriscedrick
+            if (!statusFieldId) {
+              console.error("Could not find 'Status' field in the project.");
+              return;
+            }
 
-      # Move PR to "Done" when merged
-      - name: Move PR to "Done"
-        if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          ITEM_ID=$(gh pr view ${{ github.event.pull_request.number }} --json id -q ".id")
-          DONE_FIELD_ID=$(gh project field-list 2 --owner chriscedrick --format json name,id -q '.[] | select(.name == "Done") | .id')
-          gh project item-field-update 2 --item-id $ITEM_ID --field-id $DONE_FIELD_ID --value "Done" --owner chriscedrick
+            const { resource } = await github.graphql(`
+              query($projectId: ID!) {
+                node(id: $projectId) {
+                  ... on ProjectV2 {
+                    items(first: 100) {
+                      nodes {
+                        id
+                        content {
+                          ... on Issue {
+                            id
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, { projectId });
+
+            const item = resource.node.items.nodes.find(
+              item => item.content?.id === issueNodeId
+            );
+
+            if (item) {
+              await github.graphql(`
+                mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: String!) {
+                  updateProjectV2ItemFieldValue(
+                    input: {
+                      projectId: $projectId
+                      itemId: $itemId
+                      fieldId: $fieldId
+                      value: $value
+                    }
+                  ) {
+                    projectV2Item {
+                      id
+                    }
+                  }
+                }
+              `, {
+                projectId,
+                itemId: item.id,
+                fieldId: statusFieldId,
+                value: columnName,
+              });
+
+              console.log(`Moved issue to column: ${columnName}`);
+            } else {
+              console.error("Issue not found in the project.");
+            }
